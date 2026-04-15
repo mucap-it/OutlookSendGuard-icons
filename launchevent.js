@@ -1,16 +1,12 @@
 /* global Office */
 
 /**
- * ===== 設定 =====
- * 社内扱いのドメイン（複数可）
+ * 仕様固定：社内ドメインは @mucap.co.jp
+ * - To/Cc/Bcc のどこかに 1件でも社外ドメインがあれば警告（SoftBlock）
  */
-var INTERNAL_DOMAINS = [
-  "mucap.co.jp" // TODO: 自社ドメインに変更/追加
-];
-
+var INTERNAL_DOMAIN = "mucap.co.jp";
 var MAX_LIST = 8;
 
-/** ===== util ===== */
 function normalizeEmail(email) {
   return (email || "").trim().toLowerCase();
 }
@@ -24,7 +20,7 @@ function getDomain(email) {
 function isExternal(email) {
   var domain = getDomain(email);
   if (!domain) return false;
-  return INTERNAL_DOMAINS.indexOf(domain) === -1;
+  return domain !== INTERNAL_DOMAIN;
 }
 
 function uniq(arr) {
@@ -51,14 +47,12 @@ function getRecipientsAsync(field, callback) {
 }
 
 /**
- * ===== Smart Alerts: OnMessageSend =====
- * - 外部宛が1件でもあれば allowEvent:false で Smart Alerts ダイアログを出す（SoftBlock）
+ * Smart Alerts: OnMessageSend (SoftBlock)
  */
 function onMessageSendHandler(event) {
   try {
     var item = Office.context.mailbox && Office.context.mailbox.item;
     if (!item) {
-      // 取得できない場合は業務影響回避で送信許可
       event.completed({ allowEvent: true });
       return;
     }
@@ -66,7 +60,6 @@ function onMessageSendHandler(event) {
     getRecipientsAsync(item.to, function (toList) {
       getRecipientsAsync(item.cc, function (ccList) {
         getRecipientsAsync(item.bcc, function (bccList) {
-
           var all = []
             .concat(toList || [])
             .concat(ccList || [])
@@ -87,7 +80,6 @@ function onMessageSendHandler(event) {
               listed.join("\n") +
               (remaining > 0 ? ("\n…ほか " + remaining + " 件") : "");
 
-            // SoftBlock: allowEvent:false でダイアログ表示（送信続行はユーザー判断）
             event.completed({
               allowEvent: false,
               errorMessage: plain,
@@ -96,20 +88,18 @@ function onMessageSendHandler(event) {
             return;
           }
 
-          // 問題なし → 送信許可
           event.completed({ allowEvent: true });
         });
       });
     });
 
   } catch (e) {
-    // 例外時も業務影響回避で送信許可
     event.completed({ allowEvent: true });
   }
 }
 
 /**
- * 既存のリボンボタン(action)用（残しておく：デバッグに便利）
+ * リボンボタン(action)用（デバッグ用に残す）
  */
 function action(event) {
   try {
@@ -129,8 +119,6 @@ function action(event) {
 
 /**
  * ★必須：manifest.xml の FunctionName と一致させる
- * - LaunchEvent の FunctionName="onMessageSendHandler"
- * - ボタンの FunctionName="action"
  */
 Office.actions.associate("onMessageSendHandler", onMessageSendHandler);
 Office.actions.associate("action", action);
